@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-demo-fargate
+  namespace: default
+spec:
+ replicas: 1
+ selector:
+   matchLabels:
+     app: "nginx-demo-fargate"
+ template:
+   metadata:
+     labels:
+       app: "nginx-demo-fargate"
+     name: "nginx-demo-fargate-pod"
+     annotations:
+       ad.datadoghq.com/nginx-demo-ctr.check_names: '["nginx"]'
+       ad.datadoghq.com/nginx-demo-ctr.init_configs: '[{}]'
+       ad.datadoghq.com/nginx-demo-ctr.instances: '[{"nginx_status_url": "http://%%host%%:81/nginx_status/"}]'
+   spec:
+     serviceAccountName: datadog-agent
+     volumes:
+       - name: "config"
+         configMap:
+           name: "nginxconfig"
+       - name: fluent-bit-config
+         configMap:
+           name: fluent-bit-config
+     containers:
+     - name: nginx-demo-ctr
+       image: nginx
+       resources:
+         limits:
+           cpu: "2"
+         requests:
+           cpu: "1.5"
+       ports:
+       - containerPort: 81
+       volumeMounts:
+       - name: "config"
+         mountPath: "/etc/nginx/nginx.conf"
+         subPath: "nginx.conf"
+       env:
+         - name: DD_AGENT_HOST
+           valueFrom:
+             fieldRef:
+               fieldPath: status.hostIP
+         - name: DATADOG_TRACE_AGENT_HOSTNAME
+           valueFrom:
+             fieldRef:
+               fieldPath: status.hostIP
+     - name: fluent-bit
+       image: fluent/fluent-bit:1.5
+       volumeMounts:
+       - name: fluent-bit-config
+         mountPath: /fluent-bit/etc/
+       resources:
+         limits:
+           memory: 500Mi
+         requests:
+           cpu: 500m
+           memory: 100Mi
+     ## Running the Agent as a sidecar
+     - name: datadog-agent
+       image: datadog/agent
+       ports:
+         - containerPort: 8126
+           name: traceport
+           protocol: TCP
+       env:
+         - name: DD_API_KEY
+           value: "<MY_DATADOG_API_KEY>"
+           ## Set DD_SITE to "datadoghq.eu" to send your
+           ## Agent data to the Datadog EU site
+         - name: DD_SITE
+           value: "datadoghq.com"
+         - name: DD_EKS_FARGATE
+           value: "true"
+         - name: DD_KUBERNETES_KUBELET_NODENAME
+           valueFrom:
+             fieldRef:
+               apiVersion: v1
+               fieldPath: spec.nodeName
+         - name: DD_LOGS_ENABLED
+           value: "true"
+         - name: DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL
+           value: "true"
+         - name: DD_CONTAINER_EXCLUDE
+           value: "name:datadog-agent"
+         - name: DD_APM_ENABLED
+           value: "true"
+         - name: DD_APM_NON_LOCAL_TRAFFIC
+           value: "true"
+       resources:
+         requests:
+           memory: "512Mi"
+           cpu: "800m"
+         limits:
+           memory: "512Mi"
+           cpu: "800m"
+---
+apiVersion: v1
+data:
+  nginx.conf: |+
+    events {}
+    http {
+        server {
+            listen 81;
+            server_name localhost;
+            location /nginx_status {
+              stub_status on;
+              access_log off;
+              allow all;
+            }
+        }
+    }
+kind: ConfigMap
+metadata:
+  name: nginxconfig
+  namespace: default
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  labels:
+    app.kubernetes.io/name: fluentbit
+data:
+  fluent-bit.conf: |
+    [INPUT]
+        Name              tail
+        Tag               kube.*
+        Path              /var/log/containers/*.log
+        Parser            docker
+        DB                /var/log/flb_kube.db
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+    [OUTPUT]
+        Name           datadog
+        Match          *
+        Host           http-intake.logs.datadoghq.com
+        TLS            on
+        apikey         <MY_DATADOG_API_KEY>
+        dd_service     web-server
+        dd_source      apache
+        dd_tags        project:fluent-bit
