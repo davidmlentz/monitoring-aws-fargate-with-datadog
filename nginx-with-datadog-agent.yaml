@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-demo-fargate
+  namespace: default
+spec:
+ replicas: 1
+ selector:
+   matchLabels:
+     app: "nginx-demo-fargate"
+ template:
+   metadata:
+     labels:
+       app: "nginx-demo-fargate"
+     name: "nginx-demo-fargate-pod"
+     annotations:
+       ad.datadoghq.com/nginx-demo-ctr.check_names: '["nginx"]'
+       ad.datadoghq.com/nginx-demo-ctr.init_configs: '[{}]'
+       ad.datadoghq.com/nginx-demo-ctr.instances: '[{"nginx_status_url": "http://%%host%%:81/nginx_status/"}]'
+   spec:
+     serviceAccountName: datadog-agent
+     volumes:
+       - name: "config"
+         configMap:
+           name: "nginxconfig"
+     containers:
+     - name: nginx-demo-ctr
+       image: nginx
+       resources:
+         limits:
+           cpu: "2"
+         requests:
+           cpu: "1.5"
+       ports:
+       - containerPort: 81
+       volumeMounts:
+       - name: "config"
+         mountPath: "/etc/nginx/nginx.conf"
+         subPath: "nginx.conf"
+     ## Running the Agent as a sidecar
+     - image: datadog/agent
+       name: datadog-agent
+       env:
+         - name: DD_API_KEY
+           value: "<MY_DATADOG_API_KEY>"
+           ## Set DD_SITE to "datadoghq.eu" to send your
+           ## Agent data to the Datadog EU site
+         - name: DD_SITE
+           value: "datadoghq.com"
+         - name: DD_EKS_FARGATE
+           value: "true"
+         - name: DD_KUBERNETES_KUBELET_NODENAME
+           valueFrom:
+             fieldRef:
+               apiVersion: v1
+               fieldPath: spec.nodeName
+       resources:
+         requests:
+           memory: "512Mi"
+           cpu: "800m"
+         limits:
+           memory: "512Mi"
+           cpu: "800m"
+---
+apiVersion: v1
+data:
+  nginx.conf: |+
+    events {}
+    http {
+        server {
+            listen 81;
+            server_name localhost;
+            location /nginx_status {
+              stub_status on;
+              access_log off;
+              allow all;
+            }
+        }
+    }
+kind: ConfigMap
+metadata:
+  name: nginxconfig
+  namespace: default
