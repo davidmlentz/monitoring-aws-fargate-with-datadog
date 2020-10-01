@@ -26,6 +26,9 @@ spec:
        - name: fluent-bit-config
          configMap:
            name: fluent-bit-config
+       - name: pointerdir
+         hostPath:
+           path: /opt/datadog-agent/run
      containers:
      - name: nginx-demo-ctr
        image: nginx
@@ -56,7 +59,7 @@ spec:
        image: datadog/agent
        env:
          - name: DD_API_KEY
-           value: "<MY_DATADOG_API_KEY>"
+           value: "<MY_API_KEY>"
            ## Set DD_SITE to "datadoghq.eu" to send your
            ## Agent data to the Datadog EU site
          - name: DD_SITE
@@ -77,10 +80,6 @@ spec:
        volumeMounts:
        - name: pointerdir
          mountPath: /opt/datadog-agent/run
-       volumes:
-       - hostPath:
-         path: /opt/datadog-agent/run
-    name: pointerdir
        resources:
          requests:
            memory: "512Mi"
@@ -131,7 +130,7 @@ data:
         Match          *
         Host           http-intake.logs.datadoghq.com
         TLS            on
-        apikey         <MY_DATADOG_API_KEY>
+        apikey         <MY_API_KEY>
         dd_service     web-server
         dd_source      apache
         dd_tags        project:fluent-bit
