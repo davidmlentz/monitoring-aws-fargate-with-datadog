@@ -26,9 +26,8 @@ spec:
        - name: fluent-bit-config
          configMap:
            name: fluent-bit-config
-       - name: pointerdir
-         hostPath:
-           path: /opt/datadog-agent/run
+       - name: app-logs
+         emptyDir: {}
      containers:
      - name: nginx-demo-ctr
        image: nginx
@@ -43,11 +42,15 @@ spec:
        - name: "config"
          mountPath: "/etc/nginx/nginx.conf"
          subPath: "nginx.conf"
+       - mountPath: /var/log/containers
+         name: app-logs
      - name: fluent-bit
        image: fluent/fluent-bit:1.5
        volumeMounts:
        - name: fluent-bit-config
-         mountPath: /fluent-bit/etc/
+         mountPath: /fluent-bit/etc
+       - name: app-logs
+         mountPath: /var/log/containers
        resources:
          limits:
            memory: 500Mi
@@ -71,15 +74,6 @@ spec:
              fieldRef:
                apiVersion: v1
                fieldPath: spec.nodeName
-         - name: DD_LOGS_ENABLED
-           value: "true"
-         - name: DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL
-           value: "true"
-         - name: DD_CONTAINER_EXCLUDE
-           value: "name:datadog-agent"
-       volumeMounts:
-       - name: pointerdir
-         mountPath: /opt/datadog-agent/run
        resources:
          requests:
            memory: "512Mi"
@@ -93,6 +87,8 @@ data:
   nginx.conf: |+
     events {}
     http {
+        access_log /var/log/containers/access.log combined;
+        error_log /var/log/containers/error.log info;
         server {
             listen 81;
             server_name localhost;
@@ -119,7 +115,7 @@ data:
     [INPUT]
         Name              tail
         Tag               kube.*
-        Path              /var/log/containers/*.log
+        Path              /var/log/containers/*
         Parser            docker
         DB                /var/log/flb_kube.db
         Mem_Buf_Limit     5MB
