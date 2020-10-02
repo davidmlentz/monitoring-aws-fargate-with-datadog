@@ -142,6 +142,6 @@ data:
         Host           http-intake.logs.datadoghq.com
         TLS            on
         apikey         <MY_DATADOG_API_KEY>
-        dd_service     my-service
+        dd_service     my-web-app
         dd_source      nginx
         dd_tags        env:test
