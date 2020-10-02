@@ -23,6 +23,8 @@ spec:
        - name: "config"
          configMap:
            name: "nginxconfig"
+       - name: app-logs
+         emptyDir: {}
        - name: fluent-bit-config
          configMap:
            name: fluent-bit-config
@@ -40,6 +42,8 @@ spec:
        - name: "config"
          mountPath: "/etc/nginx/nginx.conf"
          subPath: "nginx.conf"
+       - mountPath: /var/log/containers
+         name: app-logs
        env:
          - name: DD_AGENT_HOST
            valueFrom:
@@ -53,7 +57,9 @@ spec:
        image: fluent/fluent-bit:1.5
        volumeMounts:
        - name: fluent-bit-config
-         mountPath: /fluent-bit/etc/
+         mountPath: /fluent-bit/etc
+       - name: app-logs
+         mountPath: /var/log/containers
        resources:
          limits:
            memory: 500Mi
@@ -81,12 +87,6 @@ spec:
              fieldRef:
                apiVersion: v1
                fieldPath: spec.nodeName
-         - name: DD_LOGS_ENABLED
-           value: "true"
-         - name: DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL
-           value: "true"
-         - name: DD_CONTAINER_EXCLUDE
-           value: "name:datadog-agent"
          - name: DD_APM_ENABLED
            value: "true"
          - name: DD_APM_NON_LOCAL_TRAFFIC
@@ -100,10 +100,16 @@ spec:
            cpu: "800m"
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginxconfig
+  namespace: default
 data:
   nginx.conf: |+
     events {}
     http {
+        access_log /var/log/containers/access.log combined;
+        error_log /var/log/containers/error.log info;
         server {
             listen 81;
             server_name localhost;
@@ -114,10 +120,6 @@ data:
             }
         }
     }
-kind: ConfigMap
-metadata:
-  name: nginxconfig
-  namespace: default
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -130,18 +132,16 @@ data:
     [INPUT]
         Name              tail
         Tag               kube.*
-        Path              /var/log/containers/*.log
+        Path              /var/log/containers/*
         Parser            docker
         DB                /var/log/flb_kube.db
         Mem_Buf_Limit     5MB
-        Skip_Long_Lines   On
-        Refresh_Interval  10
     [OUTPUT]
         Name           datadog
         Match          *
         Host           http-intake.logs.datadoghq.com
         TLS            on
         apikey         <MY_DATADOG_API_KEY>
-        dd_service     web-server
-        dd_source      apache
-        dd_tags        project:fluent-bit
+        dd_service     my-service
+        dd_source      nginx
+        dd_tags        env:test
