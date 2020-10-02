@@ -23,6 +23,8 @@ spec:
        - name: "config"
          configMap:
            name: "nginxconfig"
+       - name: app-logs
+         emptyDir: {}
      containers:
      - name: nginx-demo-ctr
        image: nginx
@@ -37,9 +39,11 @@ spec:
        - name: "config"
          mountPath: "/etc/nginx/nginx.conf"
          subPath: "nginx.conf"
+       - mountPath: /var/log/containers
+         name: app-logs
      ## Running the Agent as a sidecar
-     - image: datadog/agent
-       name: datadog-agent
+     - name: datadog-agent
+       image: datadog/agent
        env:
          - name: DD_API_KEY
            value: "<MY_DATADOG_API_KEY>"
@@ -63,10 +67,16 @@ spec:
            cpu: "800m"
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginxconfig
+  namespace: default
 data:
   nginx.conf: |+
     events {}
     http {
+        access_log /var/log/containers/access.log combined;
+        error_log /var/log/containers/error.log info;
         server {
             listen 81;
             server_name localhost;
@@ -77,7 +87,3 @@ data:
             }
         }
     }
-kind: ConfigMap
-metadata:
-  name: nginxconfig
-  namespace: default

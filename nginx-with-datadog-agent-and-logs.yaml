@@ -23,11 +23,11 @@ spec:
        - name: "config"
          configMap:
            name: "nginxconfig"
+       - name: app-logs
+         emptyDir: {}
        - name: fluent-bit-config
          configMap:
            name: fluent-bit-config
-       - name: app-logs
-         emptyDir: {}
      containers:
      - name: nginx-demo-ctr
        image: nginx
@@ -83,6 +83,10 @@ spec:
            cpu: "800m"
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginxconfig
+  namespace: default
 data:
   nginx.conf: |+
     events {}
@@ -99,10 +103,6 @@ data:
             }
         }
     }
-kind: ConfigMap
-metadata:
-  name: nginxconfig
-  namespace: default
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -119,8 +119,6 @@ data:
         Parser            docker
         DB                /var/log/flb_kube.db
         Mem_Buf_Limit     5MB
-        Skip_Long_Lines   On
-        Refresh_Interval  10
     [OUTPUT]
         Name           datadog
         Match          *
