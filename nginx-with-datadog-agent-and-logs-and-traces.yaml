@@ -54,7 +54,7 @@ spec:
              fieldRef:
                fieldPath: status.hostIP
      - name: fluent-bit
-       image: fluent/fluent-bit:1.5
+       image: fluent/fluent-bit:latest
        volumeMounts:
        - name: fluent-bit-config
          mountPath: /fluent-bit/etc
@@ -91,6 +91,8 @@ spec:
            value: "true"
          - name: DD_APM_NON_LOCAL_TRAFFIC
            value: "true"
+         - name: DD_TAGS
+           value: "availability-zone:us-west-1b"
        resources:
          requests:
            memory: "512Mi"
@@ -144,4 +146,4 @@ data:
         apikey         <MY_DATADOG_API_KEY>
         dd_service     my-web-app
         dd_source      nginx
-        dd_tags        env:test
+        dd_tags        availability-zone:us-west-2a
