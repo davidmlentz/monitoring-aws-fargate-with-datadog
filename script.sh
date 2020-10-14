@@ -2,4 +2,4 @@
 
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.3.6/components.yaml
 kubectl apply -f datadog-eks-rbac.yaml
-kubectl apply -f nginx-with-datadog-agent-and-logs-and-traces.yaml 
+kubectl apply -f nginx-with-apm.yaml
